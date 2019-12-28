@@ -31,6 +31,24 @@ export const parseDuration = (duration: number | null): string => {
 };
 
 /**
+ * Parse an int to rating stars
+ */
+// export const parseRating = (rating: number): string => {
+//   var rater = require("rater-js");
+//   r = rater({
+//     element: document.querySelector("#rater"),
+//     starSize: 32,
+//     step: 0.5,
+//     rateCallback: function rateCallback(rating, done) {
+//       this.setRating(rating);
+//       done();
+//     }
+//   });
+//   r.setRating(rating);
+//   return r;
+// };
+
+/**
  * Parse an URI, encoding some characters
  */
 export const parseUri = (uri: string): string => {
@@ -103,8 +121,8 @@ export const removeUselessFolders = (folders: string[]): string[] => {
 
 // TODO
 export const getDefaultMetadata = (): Track => ({
-  album: 'Unknown',
-  artist: ['Unknown artist'],
+  album: '',
+  artist: [''],
   disk: {
     no: 0,
     of: 0
@@ -112,8 +130,8 @@ export const getDefaultMetadata = (): Track => ({
   duration: 0,
   genre: [],
   loweredMetas: {
-    artist: ['unknown artist'],
-    album: 'unknown',
+    artist: [''],
+    album: '',
     title: '',
     genre: []
   },
@@ -124,7 +142,9 @@ export const getDefaultMetadata = (): Track => ({
     no: 0,
     of: 0
   },
-  year: null
+  year: null,
+  // rating: null,
+  dateAdded: new Date()
 });
 
 export const parseMusicMetadata = (data: mmd.IAudioMetadata, trackPath: string): Partial<Track> => {
@@ -138,7 +158,9 @@ export const parseMusicMetadata = (data: mmd.IAudioMetadata, trackPath: string):
     genre: common.genre,
     title: common.title || path.parse(trackPath).base,
     track: common.track,
-    year: common.year
+    year: common.year//,
+    // rating: common.rating,
+    // dateAdded: common.dateAdded
   };
 
   return pickBy(metadata);

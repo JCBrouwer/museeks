@@ -7,20 +7,21 @@ const parseGenre = (t: Track): string => t.loweredMetas.genre.toString();
 
 // Declarations
 const sortOrders = {
-  [SortBy.ARTIST]: {
-    [SortOrder.ASC]: [
+  [SortBy.DATEADDED]: {
+    [SortOrder.DSC]: [
       // Default
-      [parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'],
-      null
+      ['dateAdded', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'],
+      ['desc']
     ],
+    [SortOrder.ASC]: [['dateAdded', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], null]
+  },
+  [SortBy.ARTIST]: {
+    [SortOrder.ASC]: [[parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], null],
     [SortOrder.DSC]: [[parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], ['desc']]
   },
   [SortBy.TITLE]: {
     [SortOrder.ASC]: [['loweredMetas.title', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], null],
-    [SortOrder.DSC]: [
-      ['loweredMetas.title', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'],
-      ['desc']
-    ]
+    [SortOrder.DSC]: [['loweredMetas.title', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], ['desc']]
   },
   [SortBy.DURATION]: {
     [SortOrder.ASC]: [['duration', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], null],
@@ -33,7 +34,11 @@ const sortOrders = {
   [SortBy.GENRE]: {
     [SortOrder.ASC]: [[parseGenre, parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], null],
     [SortOrder.DSC]: [[parseGenre, parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], ['desc']]
-  }
+  }//,
+  // [SortBy.RATING]: {
+  //   [SortOrder.ASC]: [['rating', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], null],
+  //   [SortOrder.DSC]: [['rating', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], ['desc']]
+  // }
 };
 
 export default sortOrders;

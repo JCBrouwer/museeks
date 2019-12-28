@@ -21,6 +21,7 @@
 
 .cell-artist,
 .cell-album,
+.cell-date-added,
 .cell-genre {
-  width: 20%;
+  width: 16%;
 }
