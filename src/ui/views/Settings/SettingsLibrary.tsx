@@ -65,6 +65,19 @@ export default class SettingsLibrary extends React.Component<Props> {
           </Setting.Description>
         </Setting.Section>
         <Setting.Section>
+          <h3>Import date added</h3>
+          <Button
+            onClick={async () => {
+              await LibraryActions.scanDateCreated();
+            }}
+          >
+            Import from file creation date
+          </Button>
+          <Setting.Description>
+            This will scan each file for the date it was created and set it's date added attribute to that date.
+          </Setting.Description>
+        </Setting.Section>
+        <Setting.Section>
           <h3>Danger zone</h3>
           <Button
             relevancy='danger'

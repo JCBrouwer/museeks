@@ -6,6 +6,7 @@ import { parseDuration } from '../../utils/utils';
 import { TrackModel } from '../../../shared/types/interfaces';
 
 // @ts-ignore
+// alternatively look at https://github.com/n49/react-stars/pull/63 ?
 import ReactStars from 'react-stars';
 import { updateTrackRating } from '../../actions/LibraryActions';
 

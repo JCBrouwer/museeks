@@ -279,7 +279,7 @@ export const reset = async () => {
     const result = await dialog.showMessageBox(app.browserWindows.main, {
       buttons: ['Cancel', 'Reset'],
       title: 'Reset library?',
-      message: 'Are you sure you want to reset your library ? All your tracks and playlists will be cleared.',
+      message: 'Are you sure you want to reset your library? All your tracks and playlists will be cleared.',
       type: 'warning'
     });
 
@@ -327,5 +327,84 @@ export const updateTrackRating = async (path: string, rating: number) => {
     await app.models.Track.updateAsync({ path: path }, { $set: { rating: rating } });
   } catch (err) {
     console.warn(err);
+  }
+};
+
+/**
+ * Update date added attribute.
+ */
+export const updateDateAdded = async (path: string, dateAdded: Date) => {
+  try {
+    await app.models.Track.updateAsync({ path: path }, { $set: { dateAdded: dateAdded } });
+  } catch (err) {
+    console.warn(err);
+  }
+};
+
+/**
+ * Scan files for creation date and update their date added attribute
+ */
+export const scanDateCreated = async (): Promise<void> => {
+  try {
+    const tracks = await app.models.Track.find().execAsync();
+    store.dispatch({
+      type: types.LIBRARY_REFRESH_START
+    });
+    return new Promise((resolve, reject) => {
+      try {
+        // eslint-disable-next-line
+        // @ts-ignore Outdated types
+        // https://github.com/jessetane/queue/pull/15#issuecomment-414091539
+        const scanQueue = queue();
+        scanQueue.concurrency = 32;
+        scanQueue.autostart = true;
+
+        scanQueue.on('end', async () => {
+          scan.processed = 0;
+          scan.total = 0;
+          refresh()
+          store.dispatch({
+            type: types.LIBRARY_REFRESH_END,
+            payload: {
+              tracks
+            }
+          });
+          resolve();
+        });
+
+        scanQueue.on('success', () => {
+          // Every 10 scans, update progress bar
+          if (scan.processed % 100 === 0) {
+            // Progress bar update
+            store.dispatch({
+              type: types.LIBRARY_REFRESH_PROGRESS,
+              payload: {
+                processed: scan.processed,
+                total: scan.total
+              }
+            });
+          }
+        });
+        // End queue instantiation
+        scan.total += tracks.length;
+
+        tracks.forEach((track: TrackModel) => {
+          scanQueue.push(async (callback: Function) => {
+            try {
+              updateDateAdded(track.path, (await stat(track.path)).birthtime)
+              scan.processed++;
+            } catch (err) {
+              console.warn(err);
+            }
+            callback();
+          });
+        });
+      } catch (err) {
+        reject(err);
+      }
+    });
+  } catch (err) {
+    console.warn(err);
+    return new Promise((_, reject) => {reject(err)});
   }
 };
