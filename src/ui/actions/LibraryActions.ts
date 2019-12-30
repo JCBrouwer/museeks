@@ -12,6 +12,9 @@ import types from '../constants/action-types';
 import * as app from '../lib/app';
 import * as utils from '../utils/utils';
 import * as m3u from '../utils/utils-m3u';
+import { getItunesTracks } from '@jcbrouwer/itunes-music-library-tracks'
+import unescape from 'lodash-es/unescape';
+
 import { SortBy, TrackModel } from '../../shared/types/interfaces';
 import { SUPPORTED_PLAYLISTS_EXTENSIONS, SUPPORTED_TRACKS_EXTENSIONS } from '../../shared/constants';
 import * as PlaylistsActions from './PlaylistsActions';
@@ -320,6 +323,17 @@ export const incrementPlayCount = async (source: string) => {
 };
 
 /**
+ * Update the play count attribute.
+ */
+export const updatePlayCount = async (path: string, newCount: number) => {
+  try {
+    await app.models.Track.updateAsync({ path: path }, { $set: { playcount: newCount } });
+  } catch (err) {
+    console.warn(err);
+  }
+};
+
+/**
  * Update the track rating attribute.
  */
 export const updateTrackRating = async (path: string, rating: number) => {
@@ -346,10 +360,10 @@ export const updateDateAdded = async (path: string, dateAdded: Date) => {
  */
 export const scanDateCreated = async (): Promise<void> => {
   try {
-    const tracks = await app.models.Track.find().execAsync();
     store.dispatch({
       type: types.LIBRARY_REFRESH_START
     });
+    const tracks = await app.models.Track.find().execAsync();
     return new Promise((resolve, reject) => {
       try {
         // eslint-disable-next-line
@@ -358,7 +372,6 @@ export const scanDateCreated = async (): Promise<void> => {
         const scanQueue = queue();
         scanQueue.concurrency = 32;
         scanQueue.autostart = true;
-
         scanQueue.on('end', async () => {
           scan.processed = 0;
           scan.total = 0;
@@ -371,10 +384,9 @@ export const scanDateCreated = async (): Promise<void> => {
           });
           resolve();
         });
-
         scanQueue.on('success', () => {
-          // Every 10 scans, update progress bar
-          if (scan.processed % 100 === 0) {
+          // Every 10% of scans, update progress bar
+          if (scan.processed % (scan.total / 10 | 0) === 0) {
             // Progress bar update
             store.dispatch({
               type: types.LIBRARY_REFRESH_PROGRESS,
@@ -385,9 +397,8 @@ export const scanDateCreated = async (): Promise<void> => {
             });
           }
         });
-        // End queue instantiation
-        scan.total += tracks.length;
 
+        scan.total += tracks.length;
         tracks.forEach((track: TrackModel) => {
           scanQueue.push(async (callback: Function) => {
             try {
@@ -405,6 +416,104 @@ export const scanDateCreated = async (): Promise<void> => {
     });
   } catch (err) {
     console.warn(err);
+    return new Promise((_, reject) => {reject(err)});
+  }
+};
+
+interface iTrack {
+  title: string;
+  artist: string;
+  dateadded: Date;
+  rating: number | null;
+  playcount: number | null;
+}
+
+/**
+ * Scan an iTunes Library.xml for date added, rating, and play count
+ */
+export const scaniTunesAttributes = async (iTunesXMLFile: string, importDateAdded: boolean, importRatings: boolean, importPlayCount:boolean): Promise<void> => {
+  try {
+    store.dispatch({
+      type: types.LIBRARY_REFRESH_START
+    });
+
+    const tracks = await app.models.Track.find().execAsync();
+
+    var itracks: iTrack[] = [];
+    await new Promise(function(resolve, _) {
+      const trackStream = getItunesTracks(iTunesXMLFile);
+      var jsontrack;
+      trackStream.on('data', function(track: string) {
+        jsontrack = JSON.parse(track);
+        itracks.push({
+          title: jsontrack['Name'],
+          artist: jsontrack['Artist'],
+          dateadded: jsontrack['Date Added'],
+          rating: jsontrack['Rating'],
+          playcount: jsontrack['Play Count']
+        })
+      })
+      trackStream.on('end', () => resolve());
+    });
+
+    return new Promise((resolve, reject) => {
+      try {
+        // eslint-disable-next-line
+        // @ts-ignore Outdated types
+        // https://github.com/jessetane/queue/pull/15#issuecomment-414091539
+        const scanQueue = queue();
+        scanQueue.concurrency = 32;
+        scanQueue.autostart = true;
+        scanQueue.on('success', () => {
+          // Every 10% of scans, update progress bar
+          if (scan.processed % (scan.total / 10 | 0) === 0) {
+            // Progress bar update
+            store.dispatch({
+              type: types.LIBRARY_REFRESH_PROGRESS,
+              payload: {
+                processed: scan.processed,
+                total: scan.total
+              }
+            });
+          }
+        });
+
+        scan.total += tracks.length;
+        var itrack;
+        tracks.forEach((track: TrackModel) => {
+          scanQueue.push(async (callback: Function) => {
+            try {
+              itrack = itracks.find(
+                (itrack: iTrack) => unescape(itrack.title) == track.title && track.artist.indexOf(itrack.artist) > -1
+              );
+              if (itrack !== undefined) {
+                if (importDateAdded && !!itrack!.dateadded) updateDateAdded(track.path, new Date(itrack!.dateadded));
+                if (importRatings && !!itrack!.rating) updateTrackRating(track.path, itrack!.rating / 100 * 5);
+                if (importPlayCount && !!itrack!.playcount) updatePlayCount(track.path, itrack!.playcount);
+              }
+              scan.processed++;
+            } catch (err) {
+              console.warn(err);
+            }
+            callback();
+          });
+        });
+
+        scan.processed = 0;
+        scan.total = 0;
+        refresh();
+        store.dispatch({
+          type: types.LIBRARY_REFRESH_END,
+          payload: {
+            tracks
+          }
+        });
+        resolve();
+      } catch (err) {
+        reject(err);
+      }
+    });
+  } catch (err) {
     return new Promise((_, reject) => {reject(err)});
   }
 };
