@@ -34,11 +34,11 @@ const sortOrders = {
   [SortBy.GENRE]: {
     [SortOrder.ASC]: [[parseGenre, parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], null],
     [SortOrder.DSC]: [[parseGenre, parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], ['desc']]
-  }//,
-  // [SortBy.RATING]: {
-  //   [SortOrder.ASC]: [['rating', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], null],
-  //   [SortOrder.DSC]: [['rating', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], ['desc']]
-  // }
+  },
+  [SortBy.RATING]: {
+    [SortOrder.ASC]: [['rating', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], null],
+    [SortOrder.DSC]: [['rating', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], ['desc']]
+  }
 };
 
 export default sortOrders;

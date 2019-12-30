@@ -5,6 +5,10 @@ import PlayingIndicator from '../PlayingIndicator/PlayingIndicator';
 import { parseDuration } from '../../utils/utils';
 import { TrackModel } from '../../../shared/types/interfaces';
 
+// @ts-ignore
+import ReactStars from 'react-stars';
+import { updateTrackRating } from '../../actions/LibraryActions';
+
 import * as cellStyles from '../TracksListHeader/TracksListHeader.css';
 import * as styles from './TrackRow.css';
 
@@ -102,6 +106,17 @@ export default class TrackRow extends React.PureComponent<Props, State> {
     });
   };
 
+  ratingChanged = (path: string): Function => {
+    const _ratingChanged = (newRating: number): void => {
+      if (this.props.track.rating == newRating)
+        newRating = 0
+      updateTrackRating(path, newRating);
+      this.props.track.rating = newRating
+      this.forceUpdate();
+    }
+    return _ratingChanged;
+  }
+
   render() {
     const { track, selected, reordered, draggable } = this.props;
     const { reorderOver, reorderPosition } = this.state;
@@ -144,7 +159,9 @@ export default class TrackRow extends React.PureComponent<Props, State> {
         <div className={`${styles.cell} ${cellStyles.cellArtist}`}>{track.artist[0]}</div>
         <div className={`${styles.cell} ${cellStyles.cellAlbum}`}>{track.album}</div>
         <div className={`${styles.cell} ${cellStyles.cellGenre}`}>{track.genre.join(', ')}</div>
-        {/* <div className={`${styles.cell} ${cellStyles.cellRating}`}>{parseRating(track.rating)}</div> */}
+        <div className={`${styles.cell} ${cellStyles.cellRating}`}>
+          <ReactStars half color2='var(--text-color)' value={track.rating} onChange={this.ratingChanged(track.path)}/>
+        </div>
         <div className={`${styles.cell} ${cellStyles.cellDateAdded}`}>{track.dateAdded.toLocaleString()}</div>
       </div>
     );

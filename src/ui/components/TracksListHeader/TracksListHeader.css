@@ -16,12 +16,19 @@
 }
 
 .cell-duration {
-  width: 7%;
+  width: 5%;
+}
+
+.cell-genre {
+  width: 10%;
+}
+
+.cell-rating {
+  width: 76px
 }
 
 .cell-artist,
 .cell-album,
-.cell-date-added,
-.cell-genre {
-  width: 16%;
+.cell-date-added {
+  width: 15%;
 }

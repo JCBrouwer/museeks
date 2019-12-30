@@ -318,3 +318,14 @@ export const incrementPlayCount = async (source: string) => {
     console.warn(err);
   }
 };
+
+/**
+ * Update the track rating attribute.
+ */
+export const updateTrackRating = async (path: string, rating: number) => {
+  try {
+    await app.models.Track.updateAsync({ path: path }, { $set: { rating: rating } });
+  } catch (err) {
+    console.warn(err);
+  }
+};

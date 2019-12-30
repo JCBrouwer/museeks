@@ -19,7 +19,7 @@ export enum SortBy {
   TITLE = 'title',
   DURATION = 'duration',
   GENRE = 'genre',
-  // RATING = 'rating',
+  RATING = 'rating',
   DATEADDED = 'dateAdded'
 }
 
@@ -90,7 +90,7 @@ export interface Track {
     of: number;
   };
   year: number | null;
-  // rating: number | null;
+  rating: number;
   dateAdded: Date;
 }
 
