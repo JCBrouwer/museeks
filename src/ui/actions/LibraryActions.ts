@@ -439,6 +439,14 @@ export const scaniTunesAttributes = async (iTunesXMLFile: string, importDateAdde
 
     const tracks = await app.models.Track.find().execAsync();
 
+    store.dispatch({
+      type: types.LIBRARY_REFRESH_PROGRESS,
+      payload: {
+        processed: 0,
+        total: tracks.length
+      }
+    });
+
     var itracks: iTrack[] = [];
     await new Promise(function(resolve, _) {
       const trackStream = getItunesTracks(iTunesXMLFile);
