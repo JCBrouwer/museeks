@@ -13,7 +13,7 @@ import * as app from '../lib/app';
 import * as utils from '../utils/utils';
 import * as m3u from '../utils/utils-m3u';
 import { getItunesTracks } from '@jcbrouwer/itunes-music-library-tracks'
-import unescape from 'lodash-es/unescape';
+// import unescape from 'lodash-es/unescape';
 
 import { SortBy, TrackModel } from '../../shared/types/interfaces';
 import { SUPPORTED_PLAYLISTS_EXTENSIONS, SUPPORTED_TRACKS_EXTENSIONS } from '../../shared/constants';
@@ -363,7 +363,7 @@ export const scanDateCreated = async (): Promise<void> => {
     store.dispatch({
       type: types.LIBRARY_REFRESH_START
     });
-    const tracks = await app.models.Track.find().execAsync();
+    const tracks = await app.models.Track.find().execAsync()
     return new Promise((resolve, reject) => {
       try {
         // eslint-disable-next-line
@@ -372,6 +372,7 @@ export const scanDateCreated = async (): Promise<void> => {
         const scanQueue = queue();
         scanQueue.concurrency = 32;
         scanQueue.autostart = true;
+
         scanQueue.on('end', async () => {
           scan.processed = 0;
           scan.total = 0;
@@ -384,9 +385,10 @@ export const scanDateCreated = async (): Promise<void> => {
           });
           resolve();
         });
+
         scanQueue.on('success', () => {
-          // Every 10% of scans, update progress bar
-          if (scan.processed % (scan.total / 10 | 0) === 0) {
+          // Every 100 scans, update progress bar
+          if (scan.processed % 100 === 0) {
             // Progress bar update
             store.dispatch({
               type: types.LIBRARY_REFRESH_PROGRESS,
@@ -399,10 +401,13 @@ export const scanDateCreated = async (): Promise<void> => {
         });
 
         scan.total += tracks.length;
+        var stats;
         tracks.forEach((track: TrackModel) => {
+          // console.log(track.artist)
           scanQueue.push(async (callback: Function) => {
             try {
-              updateDateAdded(track.path, (await stat(track.path)).birthtime)
+              stats = await stat(track.path)
+              updateDateAdded(track.path, stats.mtime)
               scan.processed++;
             } catch (err) {
               console.warn(err);
@@ -437,23 +442,36 @@ export const scaniTunesAttributes = async (iTunesXMLFile: string, importDateAdde
       type: types.LIBRARY_REFRESH_START
     });
 
-    const tracks = await app.models.Track.find().execAsync();
+    // store.dispatch({
+    //   type: types.LIBRARY_REFRESH_PROGRESS,
+    //   payload: {
+    //     processed: 0,
+    //     total: 100
+    //   }
+    // });
 
-    store.dispatch({
-      type: types.LIBRARY_REFRESH_PROGRESS,
-      payload: {
-        processed: 0,
-        total: tracks.length
-      }
-    });
+    console.log(importDateAdded, importRatings, importPlayCount)
 
-    var itracks: iTrack[] = [];
+    const tracks = await app.models.Track.find().execAsync()
+    // .sort((a: TrackModel, b: TrackModel) => {
+    //   return a.artist[0].localeCompare(b.artist[0]);
+    // });
+
+    // store.dispatch({
+    //   type: types.LIBRARY_REFRESH_PROGRESS,
+    //   payload: {
+    //     processed: tracks.length / 2,
+    //     total: tracks.length * 2
+    //   }
+    // });
+
+    var streamTracks: iTrack[] = [];
     await new Promise(function(resolve, _) {
       const trackStream = getItunesTracks(iTunesXMLFile);
       var jsontrack;
       trackStream.on('data', function(track: string) {
         jsontrack = JSON.parse(track);
-        itracks.push({
+        streamTracks.push({
           title: jsontrack['Name'],
           artist: jsontrack['Artist'],
           dateadded: jsontrack['Date Added'],
@@ -464,59 +482,55 @@ export const scaniTunesAttributes = async (iTunesXMLFile: string, importDateAdde
       trackStream.on('end', () => resolve());
     });
 
+    // store.dispatch({
+    //   type: types.LIBRARY_REFRESH_PROGRESS,
+    //   payload: {
+    //     processed: tracks.length,
+    //     total: tracks.length * 2
+    //   }
+    // });
+
+    const itracks = streamTracks
+    // .sort((a: iTrack, b: iTrack) => {
+    //   return a.artist.localeCompare(b.artist);
+    // });
+
     return new Promise((resolve, reject) => {
       try {
-        // eslint-disable-next-line
-        // @ts-ignore Outdated types
-        // https://github.com/jessetane/queue/pull/15#issuecomment-414091539
-        const scanQueue = queue();
-        scanQueue.concurrency = 32;
-        scanQueue.autostart = true;
-        scanQueue.on('success', () => {
-          // Every 10% of scans, update progress bar
-          if (scan.processed % (scan.total / 10 | 0) === 0) {
-            // Progress bar update
-            store.dispatch({
-              type: types.LIBRARY_REFRESH_PROGRESS,
-              payload: {
-                processed: scan.processed,
-                total: scan.total
+        // var current = 0;
+        itracks.forEach((itrack: iTrack) => {
+          tracks.forEach((track: TrackModel) => {
+            // console.log(track.artist[0], itrack.artist);
+            if (track.artist[0].localeCompare(itrack.artist) == 0) {
+              if (unescape(itrack.title).localeCompare(track.title) == 0) {
+                if (importDateAdded && !!itrack!.dateadded)
+                  updateDateAdded(track.path, new Date(itrack!.dateadded));
+                if (importRatings && !!itrack!.rating)
+                  updateTrackRating(track.path, itrack!.rating / 100 * 5);
+                if (importPlayCount && !!itrack!.playcount)
+                  updatePlayCount(track.path, itrack!.playcount);
+                // current++;
               }
-            });
-          }
-        });
-
-        scan.total += tracks.length;
-        var itrack;
-        tracks.forEach((track: TrackModel) => {
-          scanQueue.push(async (callback: Function) => {
-            try {
-              itrack = itracks.find(
-                (itrack: iTrack) => unescape(itrack.title) == track.title && track.artist.indexOf(itrack.artist) > -1
-              );
-              if (itrack !== undefined) {
-                if (importDateAdded && !!itrack!.dateadded) updateDateAdded(track.path, new Date(itrack!.dateadded));
-                if (importRatings && !!itrack!.rating) updateTrackRating(track.path, itrack!.rating / 100 * 5);
-                if (importPlayCount && !!itrack!.playcount) updatePlayCount(track.path, itrack!.playcount);
-              }
-              scan.processed++;
-            } catch (err) {
-              console.warn(err);
             }
-            callback();
+            // if (current % (tracks.length / 100 | 0) === 0) {
+            //   store.dispatch({
+            //     type: types.LIBRARY_REFRESH_PROGRESS,
+            //     payload: {
+            //       processed: tracks.length + current,
+            //       total: tracks.length * 2
+            //     }
+            //   });
+            // }
           });
         });
-
-        scan.processed = 0;
-        scan.total = 0;
-        refresh();
+        refresh()
         store.dispatch({
           type: types.LIBRARY_REFRESH_END,
           payload: {
             tracks
           }
         });
-        resolve();
+        resolve()
       } catch (err) {
         reject(err);
       }
