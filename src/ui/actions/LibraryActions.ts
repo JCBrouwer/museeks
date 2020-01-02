@@ -414,8 +414,7 @@ export const scaniTunesAttributes = async (iTunesXMLFile: string, importDateAdde
 
   store.dispatch({type: types.LIBRARY_REFRESH_PROGRESS, payload: {processed: 1, total: 4}});
 
-  var itracks = await getItunesTracks(iTunesXMLFile)
-  console.log(itracks)
+  var itracks = await getItunesTracks(iTunesXMLFile);
 
   store.dispatch({type: types.LIBRARY_REFRESH_PROGRESS, payload: {processed: 2, total: 4}});
 
@@ -428,9 +427,7 @@ export const scaniTunesAttributes = async (iTunesXMLFile: string, importDateAdde
 
   store.dispatch({type: types.LIBRARY_REFRESH_PROGRESS, payload: {processed: 3, total: 4}});
 
-  console.log(itracks)
-  console.log(tracks)
-
+  // O(n) find intersection in sorted (along artist & title) lists
   var t = 0, i = 0;
   while (t < tracks.length && i < itracks.length) {
     try {
@@ -439,17 +436,10 @@ export const scaniTunesAttributes = async (iTunesXMLFile: string, importDateAdde
           if (importDateAdded) updateDateAdded(tracks[t].path, new Date(itracks[i].dateadded));
           if (importRatings) updateTrackRating(tracks[t].path, itracks[i].rating / 100 * 5);
           if (importPlayCount) updatePlayCount(tracks[t].path, itracks[i].playcount);
-          console.log(tracks[t].artist[0], tracks[t].title, " vs ", itracks[i].artist, itracks[i].title, tracks[t].artist[0].localeCompare(itracks[i].artist) === 0, tracks[t].title.localeCompare(itracks[i].title) === 0)
           t++;
         }
-        else if (tracks[t].title.localeCompare(itracks[i].title) < 0) {
-          console.log(tracks[t].artist[0], tracks[t].title, " vs ", itracks[i].artist, itracks[i].title, tracks[t].artist[0].localeCompare(itracks[i].artist), tracks[t].title.localeCompare(itracks[i].title))
-          t++;
-        }
-        else {
-          console.log(tracks[t].artist[0], tracks[t].title, " vs ", itracks[i].artist, itracks[i].title, tracks[t].artist[0].localeCompare(itracks[i].artist), tracks[t].title.localeCompare(itracks[i].title))
-          i++;
-        }
+        else if (tracks[t].title.localeCompare(itracks[i].title) < 0) t++;
+        else i++;
       }
       else if (tracks[t].artist[0].localeCompare(itracks[i].artist) < 0) t++;
       else i++;
