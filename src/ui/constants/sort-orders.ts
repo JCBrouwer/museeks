@@ -8,12 +8,12 @@ const parseGenre = (t: Track): string => t.loweredMetas.genre.toString();
 // Declarations
 const sortOrders = {
   [SortBy.DATEADDED]: {
-    [SortOrder.DSC]: [
+    [SortOrder.ASC]: [
       // Default
       ['dateAdded', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'],
-      ['desc']
+      null
     ],
-    [SortOrder.ASC]: [['dateAdded', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], null]
+    [SortOrder.DSC]: [['dateAdded', parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], ['desc']]
   },
   [SortBy.ARTIST]: {
     [SortOrder.ASC]: [[parseArtist, 'year', 'loweredMetas.album', 'disk.no', 'track.no'], null],

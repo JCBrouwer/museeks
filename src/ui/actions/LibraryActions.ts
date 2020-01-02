@@ -12,8 +12,7 @@ import types from '../constants/action-types';
 import * as app from '../lib/app';
 import * as utils from '../utils/utils';
 import * as m3u from '../utils/utils-m3u';
-import { getItunesTracks } from '@jcbrouwer/itunes-music-library-tracks'
-// import unescape from 'lodash-es/unescape';
+import { iTrack, getItunesTracks } from '../utils/utils-import'
 
 import { SortBy, TrackModel } from '../../shared/types/interfaces';
 import { SUPPORTED_PLAYLISTS_EXTENSIONS, SUPPORTED_TRACKS_EXTENSIONS } from '../../shared/constants';
@@ -168,6 +167,7 @@ const scanTracks = async (paths: string[]): Promise<void> => {
         });
       });
     } catch (err) {
+      console.warn(err);
       reject(err);
     }
   });
@@ -359,183 +359,108 @@ export const updateDateAdded = async (path: string, dateAdded: Date) => {
  * Scan files for creation date and update their date added attribute
  */
 export const scanDateCreated = async (): Promise<void> => {
-  try {
-    store.dispatch({
-      type: types.LIBRARY_REFRESH_START
-    });
-    const tracks = await app.models.Track.find().execAsync()
-    return new Promise((resolve, reject) => {
+  store.dispatch({type: types.LIBRARY_REFRESH_START});
+  const tracks = await app.models.Track.find().execAsync()
+
+  // eslint-disable-next-line
+  // @ts-ignore Outdated types
+  // https://github.com/jessetane/queue/pull/15#issuecomment-414091539
+  const scanQueue = queue();
+  scanQueue.concurrency = 32;
+  scanQueue.autostart = true;
+
+  scanQueue.on('end', async () => {
+    scan.processed = 0;
+    scan.total = 0;
+    refresh()
+    store.dispatch({ type: types.LIBRARY_REFRESH_END, payload: { tracks } });
+  });
+
+  scanQueue.on('success', () => {
+    if (scan.processed % 100 === 0) // Every 100 scans, update progress bar
+      store.dispatch({type: types.LIBRARY_REFRESH_PROGRESS, payload: {processed: scan.processed, total: scan.total}});
+  });
+
+  scan.total += tracks.length;
+  var stats: fs.Stats;
+  tracks.forEach((track: TrackModel) => {
+    scanQueue.push(async (callback: Function) => {
+      stats = await stat(track.path)
+      console.log(track.artist, track.title, stats.mtime, stats.birthtime, new Date(Math.min(stats.mtime.getTime(), stats.birthtime.getTime())))
       try {
-        // eslint-disable-next-line
-        // @ts-ignore Outdated types
-        // https://github.com/jessetane/queue/pull/15#issuecomment-414091539
-        const scanQueue = queue();
-        scanQueue.concurrency = 32;
-        scanQueue.autostart = true;
-
-        scanQueue.on('end', async () => {
-          scan.processed = 0;
-          scan.total = 0;
-          refresh()
-          store.dispatch({
-            type: types.LIBRARY_REFRESH_END,
-            payload: {
-              tracks
-            }
-          });
-          resolve();
-        });
-
-        scanQueue.on('success', () => {
-          // Every 100 scans, update progress bar
-          if (scan.processed % 100 === 0) {
-            // Progress bar update
-            store.dispatch({
-              type: types.LIBRARY_REFRESH_PROGRESS,
-              payload: {
-                processed: scan.processed,
-                total: scan.total
-              }
-            });
-          }
-        });
-
-        scan.total += tracks.length;
-        var stats;
-        tracks.forEach((track: TrackModel) => {
-          // console.log(track.artist)
-          scanQueue.push(async (callback: Function) => {
-            try {
-              stats = await stat(track.path)
-              updateDateAdded(track.path, stats.mtime)
-              scan.processed++;
-            } catch (err) {
-              console.warn(err);
-            }
-            callback();
-          });
-        });
+        updateDateAdded(track.path, new Date(Math.min(stats.mtime.getTime(), stats.birthtime.getTime())))
+        scan.processed++;
       } catch (err) {
-        reject(err);
+        console.warn("Error importing date added for ", track.artist[0], " - ", track.title, ". mtime: ", stats.mtime, " birthtime: ", stats.birthtime);
+        console.warn(err);
       }
+      callback();
     });
-  } catch (err) {
-    console.warn(err);
-    return new Promise((_, reject) => {reject(err)});
-  }
+  });
 };
-
-interface iTrack {
-  title: string;
-  artist: string;
-  dateadded: Date;
-  rating: number | null;
-  playcount: number | null;
-}
 
 /**
  * Scan an iTunes Library.xml for date added, rating, and play count
  */
 export const scaniTunesAttributes = async (iTunesXMLFile: string, importDateAdded: boolean, importRatings: boolean, importPlayCount:boolean): Promise<void> => {
-  try {
-    store.dispatch({
-      type: types.LIBRARY_REFRESH_START
-    });
+  store.dispatch({type: types.LIBRARY_REFRESH_START});
 
-    // store.dispatch({
-    //   type: types.LIBRARY_REFRESH_PROGRESS,
-    //   payload: {
-    //     processed: 0,
-    //     total: 100
-    //   }
-    // });
+  // load tracks and sort by artist, tie break by track title
+  const tracks = (await app.models.Track.find().execAsync()).sort((a: TrackModel, b: TrackModel) => {
+    const cmp = a.artist[0].localeCompare(b.artist[0])
+    if (cmp === 0) return a.title.localeCompare(b.title)
+    return cmp
+  });
 
-    console.log(importDateAdded, importRatings, importPlayCount)
+  store.dispatch({type: types.LIBRARY_REFRESH_PROGRESS, payload: {processed: 1, total: 4}});
 
-    const tracks = await app.models.Track.find().execAsync()
-    // .sort((a: TrackModel, b: TrackModel) => {
-    //   return a.artist[0].localeCompare(b.artist[0]);
-    // });
+  var itracks = await getItunesTracks(iTunesXMLFile)
+  console.log(itracks)
 
-    // store.dispatch({
-    //   type: types.LIBRARY_REFRESH_PROGRESS,
-    //   payload: {
-    //     processed: tracks.length / 2,
-    //     total: tracks.length * 2
-    //   }
-    // });
+  store.dispatch({type: types.LIBRARY_REFRESH_PROGRESS, payload: {processed: 2, total: 4}});
 
-    var streamTracks: iTrack[] = [];
-    await new Promise(function(resolve, _) {
-      const trackStream = getItunesTracks(iTunesXMLFile);
-      var jsontrack;
-      trackStream.on('data', function(track: string) {
-        jsontrack = JSON.parse(track);
-        streamTracks.push({
-          title: jsontrack['Name'],
-          artist: jsontrack['Artist'],
-          dateadded: jsontrack['Date Added'],
-          rating: jsontrack['Rating'],
-          playcount: jsontrack['Play Count']
-        })
-      })
-      trackStream.on('end', () => resolve());
-    });
+  // sort by artist, tie break by track title
+  itracks = itracks.sort((a: iTrack, b: iTrack) => {
+    const cmp = a.artist.localeCompare(b.artist)
+    if (cmp === 0) return a.title.localeCompare(b.title)
+    return cmp
+  });
 
-    // store.dispatch({
-    //   type: types.LIBRARY_REFRESH_PROGRESS,
-    //   payload: {
-    //     processed: tracks.length,
-    //     total: tracks.length * 2
-    //   }
-    // });
+  store.dispatch({type: types.LIBRARY_REFRESH_PROGRESS, payload: {processed: 3, total: 4}});
 
-    const itracks = streamTracks
-    // .sort((a: iTrack, b: iTrack) => {
-    //   return a.artist.localeCompare(b.artist);
-    // });
+  console.log(itracks)
+  console.log(tracks)
 
-    return new Promise((resolve, reject) => {
-      try {
-        // var current = 0;
-        itracks.forEach((itrack: iTrack) => {
-          tracks.forEach((track: TrackModel) => {
-            // console.log(track.artist[0], itrack.artist);
-            if (track.artist[0].localeCompare(itrack.artist) == 0) {
-              if (unescape(itrack.title).localeCompare(track.title) == 0) {
-                if (importDateAdded && !!itrack!.dateadded)
-                  updateDateAdded(track.path, new Date(itrack!.dateadded));
-                if (importRatings && !!itrack!.rating)
-                  updateTrackRating(track.path, itrack!.rating / 100 * 5);
-                if (importPlayCount && !!itrack!.playcount)
-                  updatePlayCount(track.path, itrack!.playcount);
-                // current++;
-              }
-            }
-            // if (current % (tracks.length / 100 | 0) === 0) {
-            //   store.dispatch({
-            //     type: types.LIBRARY_REFRESH_PROGRESS,
-            //     payload: {
-            //       processed: tracks.length + current,
-            //       total: tracks.length * 2
-            //     }
-            //   });
-            // }
-          });
-        });
-        refresh()
-        store.dispatch({
-          type: types.LIBRARY_REFRESH_END,
-          payload: {
-            tracks
-          }
-        });
-        resolve()
-      } catch (err) {
-        reject(err);
+  var t = 0, i = 0;
+  while (t < tracks.length && i < itracks.length) {
+    try {
+      if (tracks[t].artist[0].localeCompare(itracks[i].artist) === 0) {
+        if (tracks[t].title.localeCompare(itracks[i].title) === 0) {
+          if (importDateAdded) updateDateAdded(tracks[t].path, new Date(itracks[i].dateadded));
+          if (importRatings) updateTrackRating(tracks[t].path, itracks[i].rating / 100 * 5);
+          if (importPlayCount) updatePlayCount(tracks[t].path, itracks[i].playcount);
+          console.log(tracks[t].artist[0], tracks[t].title, " vs ", itracks[i].artist, itracks[i].title, tracks[t].artist[0].localeCompare(itracks[i].artist) === 0, tracks[t].title.localeCompare(itracks[i].title) === 0)
+          t++; i++;
+        }
+        else if (tracks[t].title.localeCompare(itracks[i].title) < 0) {
+          console.log(tracks[t].artist[0], tracks[t].title, " vs ", itracks[i].artist, itracks[i].title, tracks[t].artist[0].localeCompare(itracks[i].artist), tracks[t].title.localeCompare(itracks[i].title))
+          t++;
+        }
+        else {
+          console.log(tracks[t].artist[0], tracks[t].title, " vs ", itracks[i].artist, itracks[i].title, tracks[t].artist[0].localeCompare(itracks[i].artist), tracks[t].title.localeCompare(itracks[i].title))
+          i++;
+        }
       }
-    });
-  } catch (err) {
-    return new Promise((_, reject) => {reject(err)});
+      else if (tracks[t].artist[0].localeCompare(itracks[i].artist) < 0) t++;
+      else i++;
+
+      if ((t + i) % 100 === 0)
+        store.dispatch({type: types.LIBRARY_REFRESH_PROGRESS, payload: {processed: t + i, total: tracks.length + itracks.length}});
+    } catch (err) {
+      console.warn("Error importing ", tracks[t].artist[0], " - ", tracks[t].title, " from iTunes");
+      console.warn(err);
+    }
   }
+  store.dispatch({ type: types.LIBRARY_REFRESH_END, payload: { tracks } });
+  refresh()
 };
