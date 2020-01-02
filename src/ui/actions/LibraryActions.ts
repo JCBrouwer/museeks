@@ -440,7 +440,7 @@ export const scaniTunesAttributes = async (iTunesXMLFile: string, importDateAdde
           if (importRatings) updateTrackRating(tracks[t].path, itracks[i].rating / 100 * 5);
           if (importPlayCount) updatePlayCount(tracks[t].path, itracks[i].playcount);
           console.log(tracks[t].artist[0], tracks[t].title, " vs ", itracks[i].artist, itracks[i].title, tracks[t].artist[0].localeCompare(itracks[i].artist) === 0, tracks[t].title.localeCompare(itracks[i].title) === 0)
-          t++; i++;
+          t++;
         }
         else if (tracks[t].title.localeCompare(itracks[i].title) < 0) {
           console.log(tracks[t].artist[0], tracks[t].title, " vs ", itracks[i].artist, itracks[i].title, tracks[t].artist[0].localeCompare(itracks[i].artist), tracks[t].title.localeCompare(itracks[i].title))
