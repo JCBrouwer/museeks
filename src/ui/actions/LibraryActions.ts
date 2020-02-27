@@ -80,7 +80,11 @@ const scanPlaylists = async (paths: string[]) => {
           $or: playlistFiles.map((filePath) => ({ path: filePath }))
         });
 
-        await PlaylistsActions.create(playlistName, existingTracks.map((track) => track._id), filePath);
+        await PlaylistsActions.create(
+          playlistName,
+          existingTracks.map((track) => track._id),
+          filePath
+        );
       } catch (err) {
         console.warn(err);
       }
