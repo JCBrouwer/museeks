@@ -385,9 +385,8 @@ export const scanDateCreated = async (): Promise<void> => {
   var stats: fs.Stats;
   tracks.forEach((track: TrackModel) => {
     scanQueue.push(async (callback: Function) => {
-      stats = await stat(track.path)
-      console.log(track.artist, track.title, stats.mtime, stats.birthtime, new Date(Math.min(stats.mtime.getTime(), stats.birthtime.getTime())))
       try {
+        stats = await stat(track.path)
         updateDateAdded(track.path, new Date(Math.min(stats.mtime.getTime(), stats.birthtime.getTime())))
         scan.processed++;
       } catch (err) {
@@ -399,6 +398,11 @@ export const scanDateCreated = async (): Promise<void> => {
   });
 };
 
+const cleanse = (ar: string, ti: string): string => {
+  const str = ar.toUpperCase().replace(/(FEAT\.|FT\.|FEATURING).*/, "") + ti.toUpperCase().replace(/(FEAT\.|FT\.|FEATURING).*/, "")
+  return str.replace(/(\(|\[)ORIGINAL MIX(\)|\])|\.|\/|\\|\[|\]|\(|\)|\'|\"|\s/g, "")
+}
+
 /**
  * Scan an iTunes Library.xml for date added, rating, and play count
  */
@@ -407,9 +411,7 @@ export const scaniTunesAttributes = async (iTunesXMLFile: string, importDateAdde
 
   // load tracks and sort by artist, tie break by track title
   const tracks = (await app.models.Track.find().execAsync()).sort((a: TrackModel, b: TrackModel) => {
-    const cmp = a.artist[0].localeCompare(b.artist[0])
-    if (cmp === 0) return a.title.localeCompare(b.title)
-    return cmp
+    return cleanse(a.artist[0], a.title).localeCompare(cleanse(b.artist[0], b.title))
   });
 
   store.dispatch({type: types.LIBRARY_REFRESH_PROGRESS, payload: {processed: 1, total: 4}});
@@ -420,31 +422,25 @@ export const scaniTunesAttributes = async (iTunesXMLFile: string, importDateAdde
 
   // sort by artist, tie break by track title
   itracks = itracks.sort((a: iTrack, b: iTrack) => {
-    const cmp = a.artist.localeCompare(b.artist)
-    if (cmp === 0) return a.title.localeCompare(b.title)
-    return cmp
+    return cleanse(a.artist, a.title).localeCompare(cleanse(b.artist, b.title))
   });
 
   store.dispatch({type: types.LIBRARY_REFRESH_PROGRESS, payload: {processed: 3, total: 4}});
 
-  // O(n) find intersection in sorted (along artist & title) lists
+  // O(n) find intersection in sorted lists
   var t = 0, i = 0;
   while (t < tracks.length && i < itracks.length) {
     try {
-      if (tracks[t].artist[0].localeCompare(itracks[i].artist) === 0) {
-        if (tracks[t].title.localeCompare(itracks[i].title) === 0) {
-          if (importDateAdded) updateDateAdded(tracks[t].path, new Date(itracks[i].dateadded));
-          if (importRatings) updateTrackRating(tracks[t].path, itracks[i].rating / 100 * 5);
-          if (importPlayCount) updatePlayCount(tracks[t].path, itracks[i].playcount);
-          t++;
-        }
-        else if (tracks[t].title.localeCompare(itracks[i].title) < 0) t++;
-        else i++;
+      // console.log(cleanse(tracks[t].artist[0], tracks[t].title), cleanse(itracks[i].artist, itracks[i].title))
+      if (cleanse(tracks[t].artist[0], tracks[t].title).localeCompare(cleanse(itracks[i].artist, itracks[i].title)) === 0) {
+        if (importDateAdded) updateDateAdded(tracks[t].path, new Date(itracks[i].dateadded));
+        if (importRatings) updateTrackRating(tracks[t].path, itracks[i].rating / 100 * 5);
+        if (importPlayCount) updatePlayCount(tracks[t].path, itracks[i].playcount);
+        t++;
       }
-      else if (tracks[t].artist[0].localeCompare(itracks[i].artist) < 0) t++;
-      else i++;
-
-      if ((t + i) % 100 === 0)
+      else if (cleanse(tracks[t].artist[0], tracks[t].title).localeCompare(cleanse(itracks[i].artist, itracks[i].title)) > 0) i++;
+      else t++;
+      if ((t + i) % ((tracks.length + itracks.length) / 20 | 0) === 0)
         store.dispatch({type: types.LIBRARY_REFRESH_PROGRESS, payload: {processed: t + i, total: tracks.length + itracks.length}});
     } catch (err) {
       console.warn("Error importing ", tracks[t].artist[0], " - ", tracks[t].title, " from iTunes");
